@@ -1,0 +1,23 @@
+{
+  "name": "js-helper-redis",
+  "version": "0.0.1",
+  "main": "./lib/redis.js",
+  "types": "./types/index.d.ts",
+  "scripts": {
+    "test": "mocha --require ts-node/register src/redis.test.ts",
+    "build": "tsc && yarn tslint",
+    "tslint": "tslint -c tslint.json -p tsconfig.json"
+  },
+  "dependencies": {
+    "ioredis": "^4.9.0"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.6",
+    "@types/node": "^11.13.7",
+    "node-assist": "^0.4.4",
+    "ts-node": "^8.1.0",
+    "tslint": "^5.16.0",
+    "typescript": "^3.4.5"
+  }
+}
