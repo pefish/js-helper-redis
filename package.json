@@ -1,6 +1,6 @@
 {
   "name": "js-helper-redis",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "main": "./lib/redis.js",
   "types": "./types/redis.d.ts",
   "scripts": {

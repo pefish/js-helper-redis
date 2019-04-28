@@ -63,11 +63,12 @@ export default class RedisHelper {
 
   async init (): Promise<void> {
     try {
+      global.logger.info(`connecting redis: ${this.config.host} ...`)
       await this.redisClient.connect()
-      global.logger.info(`redis connect succeed. host: ${this.config.host}`)
+      global.logger.info(`redis: ${this.config.host} connect succeed!`)
     } catch (err) {
       await this.close(); // 禁止重连
-      global.logger.info(`redis connect failed. host: ${this.config.host}`, err)
+      global.logger.error(`redis: ${this.config.host} connect failed!`, err)
       throw err
     }
   }
