@@ -1,7 +1,22 @@
 import Redis from 'ioredis'
 import ErrorHelper from 'p-js-error'
 
+declare global {
+    namespace NodeJS {
+        interface Global {
+            logger: any,
+        }
+    }
+}
+
+interface RedisConfig {
+  host: string;
+  port: number;
+  db: number;
+}
+
 export default class RedisHelper {
+  config: RedisConfig;
   redisClient: Redis;
   set: RedisHelperSet;
   list: RedisHelperList;
@@ -10,6 +25,8 @@ export default class RedisHelper {
   hash: RedisHelperHash;
 
   constructor (config) {
+    this.config = config
+
     this.redisClient = new Redis(Object.assign({
       lazyConnect: true,
     }, config))
@@ -47,8 +64,10 @@ export default class RedisHelper {
   async init (): Promise<void> {
     try {
       await this.redisClient.connect()
+      global.logger.info(`redis connect succeed. host: ${this.config.host}`)
     } catch (err) {
-      await this.close() // 禁止重连
+      await this.close(); // 禁止重连
+      global.logger.info(`redis connect failed. host: ${this.config.host}`, err)
       throw err
     }
   }
