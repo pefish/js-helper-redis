@@ -1,5 +1,6 @@
+import '@pefish/js-node-assist'
 import Redis from 'ioredis'
-import ErrorHelper from 'p-js-error'
+import ErrorHelper from '@pefish/js-error'
 
 declare global {
     namespace NodeJS {
@@ -91,7 +92,7 @@ export default class RedisHelper {
           reject(new ErrorHelper('失败', 0, null, err))
           return
         }
-        global[`debug`] && global[`logger`].info(`expire  key: ${key}, seconds: ${seconds}`)
+        global.logger.debug(`expire  key: ${key}, seconds: ${seconds}`)
         resolve(reply)
       })
     })
@@ -112,7 +113,7 @@ export default class RedisHelper {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`del  key: ${key}`)
+          global.logger.debug(`del  key: ${key}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -233,7 +234,7 @@ export default class RedisHelper {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`exec  multi: ${multi}`)
+          global.logger.debug(`exec  multi: ${multi}`)
           resolve(res)
         }
       })
@@ -261,7 +262,7 @@ export default class RedisHelper {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`multiWithTransaction  exeArr: ${JSON.stringify(exeArr)}`)
+          global.logger.debug(`multiWithTransaction  exeArr: ${JSON.stringify(exeArr)}`)
           resolve(replies)
         }
       })
@@ -283,7 +284,7 @@ export default class RedisHelper {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`multiWithoutTransaction  exeArr: ${JSON.stringify(exeArr)}`)
+          global.logger.debug(`multiWithoutTransaction  exeArr: ${JSON.stringify(exeArr)}`)
           resolve(replies)
         }
       })
@@ -380,7 +381,7 @@ class RedisHelperSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`sadd  key: ${key}, arr: ${JSON.stringify(arr)}`)
+          global.logger.debug(`sadd  key: ${key}, arr: ${JSON.stringify(arr)}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -402,7 +403,7 @@ class RedisHelperSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`smembers  key: ${key}`)
+          global.logger.debug(`smembers  key: ${key}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -425,7 +426,7 @@ class RedisHelperSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`sismember  key: ${key}, member: ${member}`)
+          global.logger.debug(`sismember  key: ${key}, member: ${member}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -447,7 +448,7 @@ class RedisHelperSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`spop  key: ${key}`)
+          global.logger.debug(`spop  key: ${key}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -470,7 +471,7 @@ class RedisHelperSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`srem  key: ${key}, arr: ${JSON.stringify(arr)}`)
+          global.logger.debug(`srem  key: ${key}, arr: ${JSON.stringify(arr)}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -492,7 +493,7 @@ class RedisHelperSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`scard  key: ${key}`)
+          global.logger.debug(`scard  key: ${key}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -528,7 +529,7 @@ class RedisHelperList {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`lpush  key: ${key}, arr: ${JSON.stringify(arr)}`)
+          global.logger.debug(`lpush  key: ${key}, arr: ${JSON.stringify(arr)}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -550,7 +551,7 @@ class RedisHelperList {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`rpop  key: ${key}`)
+          global.logger.debug(`rpop  key: ${key}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -574,7 +575,7 @@ class RedisHelperList {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`lrange  key: ${key}, start: ${start}, end: ${end}`)
+          global.logger.debug(`lrange  key: ${key}, start: ${start}, end: ${end}`)
           resolve(reply)
         }
       })
@@ -610,7 +611,7 @@ class RedisHelperHash {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`hmset  key: ${key}, arr: ${JSON.stringify(arr)}`)
+          global.logger.debug(`hmset  key: ${key}, arr: ${JSON.stringify(arr)}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -634,7 +635,7 @@ class RedisHelperHash {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`hsetnx  key: ${key}, field: ${field}, value: ${value}`)
+          global.logger.debug(`hsetnx  key: ${key}, field: ${field}, value: ${value}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -659,7 +660,7 @@ class RedisHelperHash {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`hset  key: ${key}, field: ${field}, value: ${value}`)
+          global.logger.debug(`hset  key: ${key}, field: ${field}, value: ${value}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -683,7 +684,7 @@ class RedisHelperHash {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`hincrby  key: ${key}, field: ${field}, incre: ${incre}`)
+          global.logger.debug(`hincrby  key: ${key}, field: ${field}, incre: ${incre}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -706,7 +707,7 @@ class RedisHelperHash {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`hget  key: ${key}, field: ${field}, result: ${JSON.stringify(reply)}`)
+          global.logger.debug(`hget  key: ${key}, field: ${field}, result: ${JSON.stringify(reply)}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -728,7 +729,7 @@ class RedisHelperHash {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`hgetall  key: ${key}, result: ${JSON.stringify(reply)}`)
+          global.logger.debug(`hgetall  key: ${key}, result: ${JSON.stringify(reply)}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -751,7 +752,7 @@ class RedisHelperHash {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`hdel  key: ${key}, field: ${field}`)
+          global.logger.debug(`hdel  key: ${key}, field: ${field}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -787,7 +788,7 @@ class RedisHelperString {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`incr  key: ${key}`)
+          global.logger.debug(`incr  key: ${key}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -810,7 +811,7 @@ class RedisHelperString {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`incrBy  key: ${key}, incr: ${incr}`)
+          global.logger.debug(`incrBy  key: ${key}, incr: ${incr}`)
           resolve(reply)
         }
       })
@@ -833,7 +834,7 @@ class RedisHelperString {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`incrByFloat  key: ${key}, incr: ${incr}`)
+          global.logger.debug(`incrByFloat  key: ${key}, incr: ${incr}`)
           resolve(reply)
         }
       })
@@ -856,7 +857,7 @@ class RedisHelperString {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`set  key: ${key}, value: ${value}`)
+          global.logger.debug(`set  key: ${key}, value: ${value}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -880,7 +881,7 @@ class RedisHelperString {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`setex  key: ${key}, seconds: ${seconds}, value: ${value}`)
+          global.logger.debug(`setex  key: ${key}, seconds: ${seconds}, value: ${value}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -902,7 +903,7 @@ class RedisHelperString {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`setnx  key: ${key}`)
+          global.logger.debug(`setnx  key: ${key}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -925,7 +926,7 @@ class RedisHelperString {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`get  key: ${key}, result: ${JSON.stringify(reply)}`)
+          global.logger.debug(`get  key: ${key}, result: ${JSON.stringify(reply)}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -962,7 +963,7 @@ class RedisHelperOrderSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`set  key: ${key}, arr: ${JSON.stringify(arr)}`)
+          global.logger.debug(`set  key: ${key}, arr: ${JSON.stringify(arr)}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -989,7 +990,7 @@ class RedisHelperOrderSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`zrevrange  key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`)
+          global.logger.debug(`zrevrange  key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -1016,7 +1017,7 @@ class RedisHelperOrderSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`zrange  key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`)
+          global.logger.debug(`zrange  key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -1043,7 +1044,7 @@ class RedisHelperOrderSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`zrevrangebyscore  key: ${key}, maxScore: ${maxScore}, minScore: ${minScore}, withscores: ${withscores}`)
+          global.logger.debug(`zrevrangebyscore  key: ${key}, maxScore: ${maxScore}, minScore: ${minScore}, withscores: ${withscores}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
@@ -1065,7 +1066,7 @@ class RedisHelperOrderSet {
         if (err) {
           reject(new ErrorHelper('失败', 0, null, err))
         } else {
-          global[`debug`] && global[`logger`].info(`zscore  key: ${key}, val: ${val}`)
+          global.logger.debug(`zscore  key: ${key}, val: ${val}`)
           resolve(new RedisHelperReplyParser(reply))
         }
       })
