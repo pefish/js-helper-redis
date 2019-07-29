@@ -1,17 +1,16 @@
 {
   "name": "@pefish/js-helper-redis",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "main": "./lib/redis.js",
   "types": "./types/redis.d.ts",
   "scripts": {
     "test": "mocha --require ts-node/register src/redis.test.ts",
-    "build": "tsc && yarn tslint",
-    "tslint": "tslint -c tslint.json -p tsconfig.json",
+    "build": "rm -rf types lib && tsc",
     "prepublish": "yarn build"
   },
   "dependencies": {
-    "@pefish/js-error": "^0.0.5",
-    "@pefish/js-node-assist": "^0.6.0",
+    "@pefish/js-error": "^0.1.1",
+    "@pefish/js-node-assist": "^0.6.6",
     "ioredis": "^4.9.0"
   },
   "devDependencies": {
