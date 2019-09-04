@@ -1,19 +1,10 @@
 import '@pefish/js-node-assist'
 import Redis from 'ioredis'
-import ErrorHelper from '@pefish/js-error'
 
-declare global {
-    namespace NodeJS {
-        interface Global {
-            logger: any,
-        }
-    }
-}
-
-interface RedisConfig {
+type RedisConfig = {
   host: string;
-  port: number;
-  db: number;
+  port?: number;
+  db?: number;
 }
 
 export default class RedisHelper {
@@ -25,12 +16,17 @@ export default class RedisHelper {
   orderSet: RedisHelperOrderSet;
   hash: RedisHelperHash;
 
-  constructor (config) {
+  constructor(config: RedisConfig) {
     this.config = config
 
     this.redisClient = new Redis(Object.assign({
       lazyConnect: true,
     }, config))
+
+    this.redisClient.defineCommand("releaseLock", {
+      numberOfKeys: 1,
+      lua: "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
+    });
     /**
      * 集合
      * @type {RedisHelperSet}
@@ -58,11 +54,11 @@ export default class RedisHelper {
     this.hash = new RedisHelperHash(this, this.redisClient)
   }
 
-  get Empty (): RedisHelperReplyParser {
+  get Empty(): RedisHelperReplyParser {
     return new RedisHelperReplyParser(null)
   }
 
-  async init (): Promise<void> {
+  async init(): Promise<void> {
     try {
       global.logger.info(`connecting redis: ${this.config.host} ...`)
       await this.redisClient.connect()
@@ -78,67 +74,76 @@ export default class RedisHelper {
    * 给key设定过期时间
    * @param key {string} key
    * @param seconds {number} 过期秒数
-   * @returns {Promise<any>}
+   * @returns {Promise<RedisHelperReplyParser>}
    */
-  expire (key: string, seconds: number): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
+  async expire(key: string, seconds: number): Promise<RedisHelperReplyParser> {
+    if (this.isConnected()) {
+      throw new Error('redis未连接')
+    }
 
-      this.redisClient.expire(key, seconds, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-          return
-        }
-        global.logger.debug(`expire  key: ${key}, seconds: ${seconds}`)
-        resolve(reply)
-      })
-    })
+    const reply = await this.redisClient.expire(key, seconds)
+    global.logger.debug(`expire  key: ${key}, seconds: ${seconds}`)
+    return new RedisHelperReplyParser(reply)
+  }
+
+  async getLock (key: string, value: string, seconds: number): Promise<boolean> {
+    global.logger.debug(`getLock  key: ${key}, value: ${value} seconds: ${seconds}`)
+    const result = await this.string.setnx(key, value, seconds)
+    if (result == true) {
+      const timer = setInterval(async () => {
+        const val = await this.string.get(key)
+        if (val.get() === value) {
+					this.expire(key, seconds)
+				} else {
+					clearInterval(timer)
+				}
+      }, seconds * 1000 / 2)
+    }
+    return result
+  }
+
+  async releaseLock (key: string, value: string) {
+    global.logger.debug(`releaseLock  key: ${key}, value: ${value}`)
+    const result = await this.redisClient.releaseLock(key, value)
+    if (result === 0) {
+      return
+    }
+    global.logger.debug(`releaseLock success. key: ${key}, value: ${value}`)
   }
 
   /**
    * 删除key
    * @param key {string} key
-   * @returns {Promise<any>}
+   * @returns {Promise<RedisHelperReplyParser>}
    */
-  del (key: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.del(key, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`del  key: ${key}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async del(key: string): Promise<RedisHelperReplyParser> {
+    if (this.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const reply = await this.redisClient.del(key)
+    global.logger.debug(`del  key: ${key}`)
+    return new RedisHelperReplyParser(reply)
   }
 
   /**
    * 安全退出redis
    * @returns {*}
    */
-  quitSafely (): any {
-    return this.redisClient.quit()
+  async quitSafely(): Promise<any> {
+    return await this.redisClient.quit()
   }
 
-  close (): any {
-    return this.quitSafely()
+  async close(): Promise<any> {
+    return await this.quitSafely()
   }
 
   /**
    * 强制退出redis
    * @returns {*}
    */
-  quitForcibly (): any {
+  async quitForcibly(): Promise<any> {
     // 正在运行的命令回调会执行，但会有error
-    return this.redisClient.end(true)
+    return await this.redisClient.end(true)
   }
 
 
@@ -146,100 +151,79 @@ export default class RedisHelper {
    * 将client转为subscribe模式(此时只有subscribe相关命令以及quit命令可以有效执行)
    * @param channel
    */
-  subscribe(channel: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.subscribe(channel)
-      resolve(true)
-    })
+  async subscribe(channel: string): Promise<RedisHelperReplyParser> {
+    if (this.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    await this.redisClient.subscribe(channel)
+    return new RedisHelperReplyParser(true)
   }
 
   /**
    * subscribe事件
    * @param callback
-   * @returns {Promise<any>}
+   * @returns {Promise<RedisHelperReplyParser>}
    */
-  onSubscribe(callback: (channel: string, count: number) => void): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.on('subscribe', (channel, count) => {
-        callback(channel, count)
-      })
-      resolve(true)
+  async onSubscribe(callback: (channel: string, count: number) => void): Promise<RedisHelperReplyParser> {
+    if (this.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    await this.redisClient.on('subscribe', (channel, count) => {
+      callback(channel, count)
     })
+    return new RedisHelperReplyParser(true)
   }
 
   /**
    * unsubscribe事件
    * @param callback
-   * @returns {Promise<any>}
+   * @returns {Promise<RedisHelperReplyParser>}
    */
-  onUnsubscribe(callback: (channel: string, count: number) => void): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.on('unsubscribe', (channel, count) => {
-        callback(channel, count)
-      })
-      resolve(true)
+  async onUnsubscribe(callback: (channel: string, count: number) => void): Promise<RedisHelperReplyParser> {
+    if (this.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    await this.redisClient.on('unsubscribe', (channel, count) => {
+      callback(channel, count)
     })
+    return new RedisHelperReplyParser(true)
   }
 
   /**
    * message事件
    * @param callback
-   * @returns {Promise<any>}
+   * @returns {Promise<RedisHelperReplyParser>}
    */
-  onMessage(callback: (channel: string, message: any) => void): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.on('message', (channel, message) => {
-        callback(channel, message)
-      })
-      resolve(true)
+  async onMessage(callback: (channel: string, message: any) => void): Promise<RedisHelperReplyParser> {
+    if (this.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    await this.redisClient.on('message', (channel, message) => {
+      callback(channel, message)
     })
+    return new RedisHelperReplyParser(true)
   }
 
   /**
    * 开启事务
    * @returns {*|any}
    */
-  multi(): any {
-    return this.redisClient.multi()
+  async multi(): Promise<any> {
+    return await this.redisClient.multi()
   }
 
   /**
    * commit事务
    * @param multi {object} multi实例
-   * @returns {Promise<any>}
+   * @returns {Promise<RedisHelperReplyParser>}
    */
-  exec(multi: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      multi.exec((err, res) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`exec  multi: ${multi}`)
-          resolve(res)
-        }
-      })
-    })
-
+  async exec(multi: any): Promise<RedisHelperReplyParser> {
+    if (this.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const res = await multi.exec()
+    global.logger.debug(`exec  multi: ${multi}`)
+    return new RedisHelperReplyParser(res)
   }
 
   /**
@@ -252,21 +236,13 @@ export default class RedisHelper {
    * ]
    * @returns {Promise}
    */
-  multiWithTransaction(exeArr: [][]): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接');
-        return
-      }
-      this.redisClient.multi(exeArr).exec((err, replies) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`multiWithTransaction  exeArr: ${JSON.stringify(exeArr)}`)
-          resolve(replies)
-        }
-      })
-    })
+  async multiWithTransaction(exeArr: [][]): Promise<RedisHelperReplyParser> {
+    if (this.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const replies = await this.redisClient.multi(exeArr).exec()
+    global.logger.debug(`multiWithTransaction  exeArr: ${JSON.stringify(exeArr)}`)
+    return new RedisHelperReplyParser(replies)
   }
 
   /**
@@ -274,74 +250,24 @@ export default class RedisHelper {
    * @param exeArr {array} 执行命令数组
    * @returns {Promise}
    */
-  multiWithoutTransaction(exeArr: [][]): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.batch(exeArr).exec((err, replies) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`multiWithoutTransaction  exeArr: ${JSON.stringify(exeArr)}`)
-          resolve(replies)
-        }
-      })
-    })
-  }
-
-  /**
-   * 监听模式下监听到数据后执行
-   * @param callback {function}
-   * @returns {Promise}
-   */
-  onMonitor(callback: (time: any, args: any, raw_reply: any) => void): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.on('monitor', (time, args, raw_reply) => {
-        global[`logger`].info(time + ': ' + args)
-        callback(time, args, raw_reply)
-      })
-      resolve(true)
-    })
-  }
-
-  /**
-   * 进入监听模式，可以监听任何客户端的命令执行
-   * @returns {Promise}
-   */
-  monitor(): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.monitor((err, replies) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          resolve(replies)
-        }
-      })
-    })
+  async multiWithoutTransaction(exeArr: [][]): Promise<RedisHelperReplyParser> {
+    if (this.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const replies = await this.redisClient.batch(exeArr).exec()
+    global.logger.debug(`multiWithoutTransaction  exeArr: ${JSON.stringify(exeArr)}`)
+    return new RedisHelperReplyParser(replies)
   }
 
   /**
    * 复制出一个新的客户端
    * @returns {Promise}
    */
-  duplicate(): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      resolve(this.redisClient.duplicate())
-    })
+  async duplicate(): Promise<any> {
+    if (this.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    return await this.redisClient.duplicate()
   }
 
   /**
@@ -360,7 +286,7 @@ class RedisHelperSet {
   helper: RedisHelper;
   redisClient: Redis;
 
-  constructor (helper, redisClient) {
+  constructor(helper: RedisHelper, redisClient: Redis) {
     this.helper = helper
     this.redisClient = redisClient
   }
@@ -371,43 +297,27 @@ class RedisHelperSet {
    * @param arr {array} 要添加的所有成员
    * @returns {Promise}
    */
-  sadd (key: string, arr: string[]): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.sadd(key, ...arr, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`sadd  key: ${key}, arr: ${JSON.stringify(arr)}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async sadd(key: string, arr: string[]): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.sadd(key, ...arr)
+    global.logger.debug(`sadd: ${key}, ${JSON.stringify(arr)}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
    * 返回集合中的所有成员
    * @param key {string} key
-   * @returns {Promise<any>}
+   * @returns {Promise<RedisHelperReplyParser>}
    */
-  smembers (key: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.smembers(key, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`smembers  key: ${key}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async smembers(key: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.smembers(key)
+    global.logger.debug(`smembers: ${key}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -416,21 +326,13 @@ class RedisHelperSet {
    * @param member {string} 成员
    * @returns {Promise<any>}
    */
-  sismember (key: string, member: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.sismember(key, member, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`sismember  key: ${key}, member: ${member}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async sismember(key: string, member: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.sismember(key, member)
+    global.logger.debug(`sismember  key: ${key}, member: ${member}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -438,21 +340,13 @@ class RedisHelperSet {
    * @param key {string} key
    * @returns {Promise}
    */
-  spop (key: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.spop(key, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`spop  key: ${key}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async spop(key: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.spop(key)
+    global.logger.debug(`spop  key: ${key}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -461,21 +355,13 @@ class RedisHelperSet {
    * @param arr {array} 要移除的所有成员
    * @returns {Promise<any>}
    */
-  srem (key: string, arr: string[]): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.srem(key, ...arr, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`srem  key: ${key}, arr: ${JSON.stringify(arr)}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async srem(key: string, arr: string[]): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.srem(key, ...arr)
+    global.logger.debug(`srem  key: ${key}, arr: ${JSON.stringify(arr)}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -483,21 +369,13 @@ class RedisHelperSet {
    * @param key {string} key
    * @returns {Promise<any>}
    */
-  scard (key: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.scard(key, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`scard  key: ${key}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async scard(key: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.scard(key)
+    global.logger.debug(`scard  key: ${key}`)
+    return new RedisHelperReplyParser(re)
   }
 }
 
@@ -508,7 +386,7 @@ class RedisHelperList {
   helper: RedisHelper;
   redisClient: Redis;
 
-  constructor (helper, redisClient) {
+  constructor(helper, redisClient) {
     this.helper = helper
     this.redisClient = redisClient
   }
@@ -519,21 +397,13 @@ class RedisHelperList {
    * @param arr {array} 要添加的所有成员
    * @returns {Promise}
    */
-  lpush(key: string, arr: string[]): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.lpush(key, ...arr, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`lpush  key: ${key}, arr: ${JSON.stringify(arr)}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async lpush(key: string, arr: string[]): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.lpush(key, ...arr)
+    global.logger.debug(`lpush  key: ${key}, arr: ${JSON.stringify(arr)}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -541,21 +411,13 @@ class RedisHelperList {
    * @param key
    * @returns {Promise<any>}
    */
-  rpop(key: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.rpop(key, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`rpop  key: ${key}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async rpop(key: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.rpop(key)
+    global.logger.debug(`rpop  key: ${key}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -565,21 +427,13 @@ class RedisHelperList {
    * @param end
    * @returns {Promise<any>}
    */
-  lrange(key: string, start: number, end: number): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.lrange(key, start, end, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`lrange  key: ${key}, start: ${start}, end: ${end}`)
-          resolve(reply)
-        }
-      })
-    })
+  async lrange(key: string, start: number, end: number): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.lrange(key, start, end)
+    global.logger.debug(`lrange  key: ${key}, start: ${start}, end: ${end}`)
+    return new RedisHelperReplyParser(re)
   }
 }
 
@@ -590,7 +444,7 @@ class RedisHelperHash {
   helper: RedisHelper;
   redisClient: Redis;
 
-  constructor (helper, redisClient) {
+  constructor(helper, redisClient) {
     this.helper = helper
     this.redisClient = redisClient
   }
@@ -601,21 +455,13 @@ class RedisHelperHash {
    * @param arr 键值对
    * @returns {Promise}
    */
-  hmset(key: string, arr: string[]): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.hmset(key, ...arr, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`hmset  key: ${key}, arr: ${JSON.stringify(arr)}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async hmset(key: string, arr: string[]): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.hmset(key, ...arr)
+    global.logger.debug(`hmset  key: ${key}, arr: ${JSON.stringify(arr)}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -625,21 +471,13 @@ class RedisHelperHash {
    * @param value
    * @returns {Promise<any>}
    */
-  hsetnx(key: string, field: string, value: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.hsetnx(key, field, value, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`hsetnx  key: ${key}, field: ${field}, value: ${value}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async hsetnx(key: string, field: string, value: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.hsetnx(key, field, value)
+    global.logger.debug(`hsetnx  key: ${key}, field: ${field}, value: ${value}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -649,22 +487,13 @@ class RedisHelperHash {
    * @param value
    * @returns {Promise<any>}
    */
-  hset(key: string, field: string, value: string): Promise<any> {
-    // logger.error(arguments)
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.hset(key, field, value, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`hset  key: ${key}, field: ${field}, value: ${value}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async hset(key: string, field: string, value: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.hset(key, field, value)
+    global.logger.debug(`hset  key: ${key}, field: ${field}, value: ${value}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -674,21 +503,13 @@ class RedisHelperHash {
    * @param incre
    * @returns {Promise<any>}
    */
-  hincrby(key: string, field: string, incre: number = 1): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.hincrby(key, field, incre, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`hincrby  key: ${key}, field: ${field}, incre: ${incre}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async hincrby(key: string, field: string, incre: number = 1): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.hincrby(key, field, incre)
+    global.logger.debug(`hincrby  key: ${key}, field: ${field}, incre: ${incre}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -697,21 +518,13 @@ class RedisHelperHash {
    * @param field
    * @returns {Promise}
    */
-  hget(key: string, field: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.hget(key, field, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`hget  key: ${key}, field: ${field}, result: ${JSON.stringify(reply)}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async hget(key: string, field: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.hget(key, field)
+    global.logger.debug(`hget  key: ${key}, field: ${field}, result: ${JSON.stringify(re)}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -719,21 +532,13 @@ class RedisHelperHash {
    * @param key
    * @returns {Promise}
    */
-  hgetall(key: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.hgetall(key, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`hgetall  key: ${key}, result: ${JSON.stringify(reply)}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async hgetall(key: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.hgetall(key)
+    global.logger.debug(`hgetall  key: ${key}, result: ${JSON.stringify(re)}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -742,21 +547,13 @@ class RedisHelperHash {
    * @param field
    * @returns {Promise<any>}
    */
-  hdel(key: string, field: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.hdel(key, field, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`hdel  key: ${key}, field: ${field}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async hdel(key: string, field: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.hdel(key, field)
+    global.logger.debug(`hdel  key: ${key}, field: ${field}`)
+    return new RedisHelperReplyParser(re)
   }
 
 }
@@ -768,7 +565,7 @@ class RedisHelperString {
   helper: RedisHelper;
   redisClient: Redis;
 
-  constructor (helper, redisClient) {
+  constructor(helper, redisClient) {
     this.helper = helper
     this.redisClient = redisClient
   }
@@ -778,21 +575,13 @@ class RedisHelperString {
    * @param key
    * @returns {Promise<any>}
    */
-  incr(key: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.incr(key, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`incr  key: ${key}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async incr(key: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.incr(key)
+    global.logger.debug(`incr  key: ${key}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -801,21 +590,13 @@ class RedisHelperString {
    * @param incr
    * @returns {Promise<any>}
    */
-  incrBy(key: string, incr: number): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.incrby(key, incr, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`incrBy  key: ${key}, incr: ${incr}`)
-          resolve(reply)
-        }
-      })
-    })
+  async incrBy(key: string, incr: number): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.incrby(key, incr)
+    global.logger.debug(`incrBy  key: ${key}, incr: ${incr}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -824,68 +605,28 @@ class RedisHelperString {
    * @param incr
    * @returns {Promise<any>}
    */
-  incrByFloat(key: string, incr: number): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.incrbyfloat(key, incr, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`incrByFloat  key: ${key}, incr: ${incr}`)
-          resolve(reply)
-        }
-      })
-    })
+  async incrByFloat(key: string, incr: number): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.incrbyfloat(key, incr)
+    global.logger.debug(`incrByFloat  key: ${key}, incr: ${incr}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
    * 设置值
    * @param key
    * @param value
-   * @returns {Promise<any>}
+   * @returns {Promise<RedisHelperReplyParser>}
    */
-  set(key: string, value: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.set(key, value, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`set  key: ${key}, value: ${value}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
-  }
-
-  /**
-   * 同时设置值和过期时间
-   * @param key
-   * @param seconds
-   * @param value
-   * @returns {Promise<any>}
-   */
-  setex(key: string, seconds: number, value: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.setex(key, seconds, value, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`setex  key: ${key}, seconds: ${seconds}, value: ${value}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async set(key: string, value: string): Promise<boolean> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.set(key, value)
+    global.logger.debug(`set  key: ${key}, value: ${value}`)
+    return re === `OK`
   }
 
   /**
@@ -893,21 +634,18 @@ class RedisHelperString {
    * @param key
    * @returns {Promise<any>}
    */
-  setnx(key: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.setnx(key, '1', (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`setnx  key: ${key}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async setnx(key: string, value: string = `1`, expireSeconds: number = 0): Promise<boolean> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    let re
+    global.logger.debug(`setnx  key: ${key}, expireSeconds: ${expireSeconds}`)
+    if (expireSeconds == 0) {
+      re = await this.redisClient.setnx(key, value)
+    } else {
+      re = await this.redisClient.set(key, value, `EX`, expireSeconds, `nx`)
+    }
+    return re === `OK`
   }
 
   /**
@@ -915,22 +653,14 @@ class RedisHelperString {
    * @param key
    * @returns {Promise<any>}
    */
-  get(key: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
+  async get(key: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
 
-      this.redisClient.get(key, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`get  key: ${key}, result: ${JSON.stringify(reply)}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+    const reply = await this.redisClient.get(key)
+    global.logger.debug(`get  key: ${key}, result: ${JSON.stringify(reply)}`)
+    return new RedisHelperReplyParser(reply)
   }
 
 }
@@ -942,7 +672,7 @@ class RedisHelperOrderSet {
   helper: RedisHelper;
   redisClient: Redis;
 
-  constructor (helper, redisClient) {
+  constructor(helper, redisClient) {
     this.helper = helper
     this.redisClient = redisClient
   }
@@ -953,21 +683,13 @@ class RedisHelperOrderSet {
    * @param arr,先分数后值
    * @returns {Promise}
    */
-  zadd(key: string, arr: string[]): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.zadd(key, ...arr, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`set  key: ${key}, arr: ${JSON.stringify(arr)}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async zadd(key: string, arr: string[]): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.zadd(key, ...arr)
+    global.logger.debug(`set  key: ${key}, arr: ${JSON.stringify(arr)}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -978,23 +700,15 @@ class RedisHelperOrderSet {
    * @param withscores {boolean} 是否带分数
    * @returns {Promise<any>}
    */
-  zrevrange(key: string, start: string, end: string, withscores: boolean = true): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      const arr = [start, end]
-      withscores && arr.push('withscores')
-      this.redisClient.zrevrange(key, ...arr, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`zrevrange  key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async zrevrange(key: string, start: string, end: string, withscores: boolean = true): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const arr = [start, end]
+    withscores && arr.push('withscores')
+    const re = await this.redisClient.zrevrange(key, ...arr)
+    global.logger.debug(`zrevrange  key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -1005,23 +719,15 @@ class RedisHelperOrderSet {
    * @param withscores {boolean} 是否带分数
    * @returns {Promise<any>}
    */
-  zrange(key: string, start: string, end: string, withscores: boolean = true): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      const arr = [start, end]
-      withscores && arr.push('withscores')
-      this.redisClient.zrange(key, ...arr, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`zrange  key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async zrange(key: string, start: string, end: string, withscores: boolean = true): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const arr = [start, end]
+    withscores && arr.push('withscores')
+    const re = await this.redisClient.zrange(key, ...arr)
+    global.logger.debug(`zrange  key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -1032,23 +738,15 @@ class RedisHelperOrderSet {
    * @param withscores {boolean} 是否带分数
    * @returns {Promise<any>}
    */
-  zrevrangebyscore(key: string, maxScore: string, minScore: string, withscores: boolean = true): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      const arr = [maxScore, minScore]
-      withscores && arr.push('withscores')
-      this.redisClient.zrevrangebyscore(key, ...arr, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`zrevrangebyscore  key: ${key}, maxScore: ${maxScore}, minScore: ${minScore}, withscores: ${withscores}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async zrevrangebyscore(key: string, maxScore: string, minScore: string, withscores: boolean = true): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const arr = [maxScore, minScore]
+    withscores && arr.push('withscores')
+    const re = await this.redisClient.zrevrangebyscore(key, ...arr)
+    global.logger.debug(`zrevrangebyscore  key: ${key}, maxScore: ${maxScore}, minScore: ${minScore}, withscores: ${withscores}`)
+    return new RedisHelperReplyParser(re)
   }
 
   /**
@@ -1056,21 +754,13 @@ class RedisHelperOrderSet {
    * @param key
    * @param val
    */
-  zscore(key: string, val: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (this.helper.isConnected()) {
-        reject('redis未连接')
-        return
-      }
-      this.redisClient.zscore(key, val, (err, reply) => {
-        if (err) {
-          reject(new ErrorHelper('失败', 0, null, err))
-        } else {
-          global.logger.debug(`zscore  key: ${key}, val: ${val}`)
-          resolve(new RedisHelperReplyParser(reply))
-        }
-      })
-    })
+  async zscore(key: string, val: string): Promise<RedisHelperReplyParser> {
+    if (this.helper.isConnected()) {
+      throw new Error('redis未连接')
+    }
+    const re = await this.redisClient.zscore(key, val)
+    global.logger.debug(`zscore  key: ${key}, val: ${val}`)
+    return new RedisHelperReplyParser(re)
   }
 }
 
@@ -1080,7 +770,7 @@ class RedisHelperOrderSet {
 class RedisHelperReplyParser {
   source: any;
 
-  constructor (source) {
+  constructor(source) {
     this.source = source
   }
 
@@ -1088,7 +778,7 @@ class RedisHelperReplyParser {
    * 不转换直接取出来
    * @returns {*}
    */
-  get (): any {
+  get(): any {
     return this.source
   }
 
@@ -1096,7 +786,7 @@ class RedisHelperReplyParser {
    * ['test', 7, 'test1', 8] => {test: 7, test1: 8}
    * @returns {{}}
    */
-  toObj (): object {
+  toObj(): object {
     const result = {}
     for (let i = 0; i < this.source.length; i = i + 2) {
       result[this.source[i]] = this.source[i + 1]
@@ -1108,7 +798,7 @@ class RedisHelperReplyParser {
    * 转为bool值
    * @returns {boolean}
    */
-  toBool (): boolean {
+  toBool(): boolean {
     return this.source === 1
   }
 
