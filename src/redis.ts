@@ -86,23 +86,23 @@ export default class RedisHelper {
     return new RedisHelperReplyParser(reply)
   }
 
-  async getLock (key: string, value: string, seconds: number): Promise<boolean> {
+  async getLock(key: string, value: string, seconds: number): Promise<boolean> {
     global.logger.debug(`getLock  key: ${key}, value: ${value} seconds: ${seconds}`)
     const result = await this.string.setnx(key, value, seconds)
     if (result == true) {
       const timer = setInterval(async () => {
         const val = await this.string.get(key)
         if (val.get() === value) {
-					this.expire(key, seconds)
-				} else {
-					clearInterval(timer)
-				}
+          this.expire(key, seconds)
+        } else {
+          clearInterval(timer)
+        }
       }, seconds * 1000 / 2)
     }
     return result
   }
 
-  async releaseLock (key: string, value: string) {
+  async releaseLock(key: string, value: string) {
     global.logger.debug(`releaseLock  key: ${key}, value: ${value}`)
     const result = await this.redisClient.releaseLock(key, value)
     if (result === 0) {
