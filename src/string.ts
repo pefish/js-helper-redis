@@ -83,9 +83,9 @@ export class String {
   /**
    * 获取值
    * @param key
-   * @returns {Promise<string>}
+   * @returns {Promise<string | null>}
    */
-  async get(key: string): Promise<string> {
+  async get(key: string): Promise<string | null> {
     this.helper.logger.debug(`get, key: ${key}`);
     return await this.helper.redisClient.get(key);
   }

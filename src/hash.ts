@@ -73,9 +73,9 @@ export class Hash {
    * 获取指定哈希表的field的值
    * @param key
    * @param field
-   * @returns {Promise<string>}
+   * @returns {Promise<string | null>}
    */
-  async hget(key: string, field: string): Promise<string> {
+  async hget(key: string, field: string): Promise<string | null> {
     this.helper.logger.debug(`hget, key: ${key}, field: ${field}}`);
     return await this.helper.redisClient.hget(key, field);
   }

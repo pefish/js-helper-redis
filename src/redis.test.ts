@@ -93,4 +93,14 @@ describe("RedisClusterHelper", () => {
       assert.throws(() => {}, err);
     }
   });
+
+  it("Hash get", async () => {
+    try {
+      const result = await helper.hash.hget("test_hash", "gsfdsg");
+      console.error(result);
+    } catch (err) {
+      console.error("haha", err);
+      assert.throws(() => {}, err);
+    }
+  });
 });

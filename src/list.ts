@@ -45,9 +45,9 @@ export class List {
    * 通过索引获取列表中的元素
    * @param key
    * @param index
-   * @returns {Promise<string>} 如果指定索引值不在列表的区间范围内，返回 null
+   * @returns {Promise<string | null>} 如果指定索引值不在列表的区间范围内，返回 null
    */
-  async get(key: string, index: number): Promise<string> {
+  async get(key: string, index: number): Promise<string | null> {
     this.helper.logger.debug(`lindex, key: ${key}, index: ${index}`);
     return await this.helper.redisClient.lindex(key, index);
   }
