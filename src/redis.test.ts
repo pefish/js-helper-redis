@@ -1,78 +1,85 @@
-import '@pefish/js-node-assist'
-import assert from 'assert'
-import RedisClusterHelper from './redis'
+import { Logger } from "@pefish/js-logger";
+import assert from "assert";
+import { default as RedisClusterHelper, default as RedisHelper } from "./redis";
 
-describe('RedisClusterHelper', () => {
-
-  let helper: RedisClusterHelper
+describe("RedisClusterHelper", () => {
+  let helper: RedisClusterHelper;
 
   before(async () => {
-    helper = new RedisClusterHelper({
-      host: '0.0.0.0',
-    })
-  })
+    helper = new RedisHelper(new Logger(), {
+      host: "0.0.0.0",
+      password: "password",
+    });
+  });
 
-  it('init', async () => {
+  it("init", async () => {
     try {
-      await helper.init()
+      await helper.init();
     } catch (err) {
-      global[`logger`].error('haha', err)
-      assert.throws(() => {}, err)
+      global[`logger`].error("haha", err);
+      assert.throws(() => {}, err);
     }
-  })
+  });
 
-  it('String set', async () => {
+  it("String set", async () => {
     try {
-      global.logger.error('1')
-      const result = await helper.string.set('test', `test`)
-      global.logger.error(2)
-      global.logger.error(result)
+      const result = await helper.string.set("test", `test`);
+      console.error(result);
     } catch (err) {
-      global.logger.error('haha', err)
-      assert.throws(() => {}, err)
+      console.error("haha", err);
+      assert.throws(() => {}, err);
     }
-  })
+  });
 
-  it('String setnx', async () => {
+  it("String setnx", async () => {
     try {
-      global.logger.error('1')
-      const result = await helper.string.setnx('test1', `1`, 3)
-      global.logger.error(2)
-      global.logger.error(result)
+      console.error("1");
+      const result = await helper.string.setnx("test1", `1`, 3);
+      console.error(2);
+      console.error(result);
     } catch (err) {
-      global.logger.error('haha', err)
-      assert.throws(() => {}, err)
+      console.error("haha", err);
+      assert.throws(() => {}, err);
     }
-  })
+  });
 
-  it('String get', async () => {
+  it("String get", async () => {
     try {
-      global.logger.error('1')
-      const result = await helper.string.get('test')
-      global.logger.error(2)
-      global.logger.error(result)
+      const result = await helper.string.get("test");
+      console.error(result);
     } catch (err) {
-      global.logger.error('haha', err)
-      assert.throws(() => {}, err)
+      console.error("haha", err);
+      assert.throws(() => {}, err);
     }
-  })
+  });
 
-  it('getLock', async () => {
+  it("getLock", async () => {
     try {
-      const result = await helper.getLock(`lock`, `111`, 3)
-      global.logger.error(result)
+      const result = await helper.getLock(`lock`, `111`, 3);
+      console.error(result);
     } catch (err) {
-      global.logger.error('haha', err)
-      assert.throws(() => {}, err)
+      console.error("haha", err);
+      assert.throws(() => {}, err);
     }
-  })
+  });
 
-  it('releaseLock', async () => {
+  it("releaseLock", async () => {
     try {
-      await helper.releaseLock(`lock`, `111`)
+      await helper.releaseLock(`lock`, `111`);
     } catch (err) {
-      global.logger.error('haha', err)
-      assert.throws(() => {}, err)
+      console.error("haha", err);
+      assert.throws(() => {}, err);
     }
-  })
-})
+  });
+
+  it("List rpush", async () => {
+    try {
+      await helper.list.rpush("test_list", ["3", "4"]);
+      const result = await helper.list.lrange("test_list", 0, -1);
+      console.error(result.get());
+    } catch (err) {
+      console.error("haha", err);
+      assert.throws(() => {}, err);
+    }
+  });
+});
