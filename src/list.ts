@@ -14,20 +14,32 @@ export class List {
    * 为指定列表添加多个成员，是依次添加到头部
    * @param key {string} key
    * @param arr {array} 要添加的所有成员
+   * @returns {Promise<number>} 操作后，列表的长度
    */
-  async lpush(key: string, arr: string[]) {
+  async lpush(key: string, arr: string[]): Promise<number> {
     this.helper.logger.debug(`lpush, key: ${key}, arr: ${JSON.stringify(arr)}`);
-    await this.helper.redisClient.lpush(key, ...arr);
+    return await this.helper.redisClient.lpush(key, ...arr);
+  }
+
+  /**
+   * 移除并获取列表头一个元素
+   * @param key
+   * @returns {Promise<string>}
+   */
+  async lpop(key: string): Promise<string> {
+    this.helper.logger.debug(`lpop, key: ${key}`);
+    return await this.helper.redisClient.lpop(key);
   }
 
   /**
    * 为指定列表添加多个成员，是依次添加到尾部
    * @param key {string} key
    * @param arr {array} 要添加的所有成员
+   * @returns {Promise<number>} 操作后，列表的长度
    */
-  async rpush(key: string, arr: string[]) {
+  async rpush(key: string, arr: string[]): Promise<number> {
     this.helper.logger.debug(`rpush, key: ${key}, arr: ${JSON.stringify(arr)}`);
-    await this.helper.redisClient.rpush(key, ...arr);
+    return await this.helper.redisClient.rpush(key, ...arr);
   }
 
   /**
