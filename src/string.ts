@@ -1,4 +1,4 @@
-import RedisHelper, { RedisHelperReplyParser } from "./redis";
+import { RedisHelper } from "./redis";
 
 /**
  * redis字符串类
@@ -13,57 +13,49 @@ export class String {
   /**
    * 将 key 中储存的数字值增一
    * @param key
-   * @returns {Promise<any>}
    */
-  async incr(key: string): Promise<RedisHelperReplyParser> {
-    const re = await this.helper.redisClient.incr(key);
-    this.helper.logger.debug(`incr  key: ${key}`);
-    return new RedisHelperReplyParser(re);
+  async incr(key: string) {
+    this.helper.logger.debug(`incr, key: ${key}`);
+    await this.helper.redisClient.incr(key);
   }
 
   /**
    * 将 key 所储存的值加上给定的增量值 increment
    * @param key
    * @param incr
-   * @returns {Promise<any>}
    */
-  async incrBy(key: string, incr: number): Promise<RedisHelperReplyParser> {
-    const re = await this.helper.redisClient.incrby(key, incr);
-    this.helper.logger.debug(`incrBy  key: ${key}, incr: ${incr}`);
-    return new RedisHelperReplyParser(re);
+  async incrBy(key: string, incr: number) {
+    this.helper.logger.debug(`incrBy, key: ${key}, incr: ${incr}`);
+    await this.helper.redisClient.incrby(key, incr);
   }
 
   /**
    * 将 key 所储存的值加上给定的浮点增量值 increment
    * @param key
    * @param incr
-   * @returns {Promise<any>}
    */
-  async incrByFloat(
-    key: string,
-    incr: number
-  ): Promise<RedisHelperReplyParser> {
-    const re = await this.helper.redisClient.incrbyfloat(key, incr);
-    this.helper.logger.debug(`incrByFloat  key: ${key}, incr: ${incr}`);
-    return new RedisHelperReplyParser(re);
+  async incrByFloat(key: string, incr: number) {
+    this.helper.logger.debug(`incrByFloat, key: ${key}, incr: ${incr}`);
+    await this.helper.redisClient.incrbyfloat(key, incr);
   }
 
   /**
    * 设置值
    * @param key
    * @param value
-   * @returns {Promise<RedisHelperReplyParser>}
    */
-  async set(key: string, value: string): Promise<boolean> {
-    const re = await this.helper.redisClient.set(key, value);
+  async set(key: string, value: string) {
     this.helper.logger.debug(`set  key: ${key}, value: ${value}`);
-    return re === `OK`;
+    const re = await this.helper.redisClient.set(key, value);
+    if (re !== "OK") {
+      throw new Error(`set failed. key: ${key}, value: ${value}`);
+    }
   }
 
   /**
    * 只有在 key 不存在时设置 key 的值
    * @param key
-   * @returns {Promise<any>}
+   * @returns {Promise<boolean>}
    */
   async setnx(
     key: string,
@@ -91,13 +83,10 @@ export class String {
   /**
    * 获取值
    * @param key
-   * @returns {Promise<any>}
+   * @returns {Promise<string>}
    */
-  async get(key: string): Promise<RedisHelperReplyParser> {
-    const reply = await this.helper.redisClient.get(key);
-    this.helper.logger.debug(
-      `get  key: ${key}, result: ${JSON.stringify(reply)}`
-    );
-    return new RedisHelperReplyParser(reply);
+  async get(key: string): Promise<string> {
+    this.helper.logger.debug(`get, key: ${key}`);
+    return await this.helper.redisClient.get(key);
   }
 }

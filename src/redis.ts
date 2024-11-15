@@ -1,5 +1,5 @@
 import { ILogger } from "@pefish/js-logger";
-import Redis from "ioredis";
+import Redis, { ChainableCommander } from "ioredis";
 import { Hash } from "./hash";
 import { List } from "./list";
 import { OrderSet } from "./order_set";
@@ -13,7 +13,7 @@ type RedisConfig = {
   password?: string;
 };
 
-export default class RedisHelper {
+export class RedisHelper {
   logger: ILogger;
   config: RedisConfig;
   redisClient: Redis;
@@ -44,10 +44,6 @@ export default class RedisHelper {
     this.hash = new Hash(this);
   }
 
-  get Empty(): RedisHelperReplyParser {
-    return new RedisHelperReplyParser(null);
-  }
-
   async init(): Promise<void> {
     try {
       this.logger.info(`connecting redis: ${this.config.host} ...`);
@@ -61,15 +57,13 @@ export default class RedisHelper {
   }
 
   /**
-   * 给key设定过期时间
+   * 给 key 设定过期时间
    * @param key {string} key
    * @param seconds {number} 过期秒数
-   * @returns {Promise<RedisHelperReplyParser>}
    */
-  async expire(key: string, seconds: number): Promise<RedisHelperReplyParser> {
-    const reply = await this.redisClient.expire(key, seconds);
+  async expire(key: string, seconds: number) {
     this.logger.debug(`expire  key: ${key}, seconds: ${seconds}`);
-    return new RedisHelperReplyParser(reply);
+    await this.redisClient.expire(key, seconds);
   }
 
   async getLock(key: string, value: string, seconds: number): Promise<boolean> {
@@ -80,7 +74,7 @@ export default class RedisHelper {
     if (result == true) {
       const timer = setInterval(async () => {
         const val = await this.string.get(key);
-        if (val.get() === value) {
+        if (val === value) {
           this.expire(key, seconds);
         } else {
           clearInterval(timer);
@@ -100,96 +94,72 @@ export default class RedisHelper {
   }
 
   /**
-   * 删除key
+   * 删除 key
    * @param key {string} key
-   * @returns {Promise<RedisHelperReplyParser>}
    */
-  async del(key: string): Promise<RedisHelperReplyParser> {
-    const reply = await this.redisClient.del(key);
+  async del(key: string) {
     this.logger.debug(`del  key: ${key}`);
-    return new RedisHelperReplyParser(reply);
+    await this.redisClient.del(key);
   }
 
   /**
-   * 安全退出redis
-   * @returns {*}
+   * 安全退出 redis
    */
-  async quitSafely(): Promise<any> {
-    return await this.redisClient.quit();
-  }
-
-  async close(): Promise<any> {
-    return await this.quitSafely();
+  async close() {
+    await this.redisClient.quit();
   }
 
   /**
-   * 将client转为subscribe模式(此时只有subscribe相关命令以及quit命令可以有效执行)
+   * 将 client 转为 subscribe 模式(此时只有 subscribe 相关命令以及 quit 命令可以有效执行)
    * @param channel
    */
-  async subscribe(channel: string): Promise<RedisHelperReplyParser> {
+  async subscribe(channel: string) {
     await this.redisClient.subscribe(channel);
-    return new RedisHelperReplyParser(true);
   }
 
   /**
-   * subscribe事件
+   * subscribe 事件
    * @param callback
-   * @returns {Promise<RedisHelperReplyParser>}
    */
-  async onSubscribe(
-    callback: (channel: string, count: number) => void
-  ): Promise<RedisHelperReplyParser> {
-    await this.redisClient.on("subscribe", (channel, count) => {
+  onSubscribe(callback: (channel: string, count: number) => void) {
+    this.redisClient.on("subscribe", (channel, count) => {
       callback(channel, count);
     });
-    return new RedisHelperReplyParser(true);
   }
 
   /**
-   * unsubscribe事件
+   * unsubscribe 事件
    * @param callback
-   * @returns {Promise<RedisHelperReplyParser>}
    */
-  async onUnsubscribe(
-    callback: (channel: string, count: number) => void
-  ): Promise<RedisHelperReplyParser> {
-    await this.redisClient.on("unsubscribe", (channel, count) => {
+  onUnsubscribe(callback: (channel: string, count: number) => void) {
+    this.redisClient.on("unsubscribe", (channel, count) => {
       callback(channel, count);
     });
-    return new RedisHelperReplyParser(true);
   }
 
   /**
-   * message事件
+   * message 事件
    * @param callback
-   * @returns {Promise<RedisHelperReplyParser>}
    */
-  async onMessage(
-    callback: (channel: string, message: any) => void
-  ): Promise<RedisHelperReplyParser> {
-    await this.redisClient.on("message", (channel, message) => {
-      callback(channel, message);
-    });
-    return new RedisHelperReplyParser(true);
+  onMessage(callback: (channel: string, message: string) => void) {
+    this.redisClient.on("message", callback);
   }
 
   /**
    * 开启事务
-   * @returns {*|any}
+   * @returns {ChainableCommander}
    */
-  async multi(): Promise<any> {
-    return await this.redisClient.multi();
+  multi(): ChainableCommander {
+    return this.redisClient.multi();
   }
 
   /**
    * commit事务
-   * @param multi {object} multi实例
-   * @returns {Promise<RedisHelperReplyParser>}
+   * @param multi {object} multi 实例
    */
-  async exec(multi: any): Promise<RedisHelperReplyParser> {
-    const res = await multi.exec();
-    this.logger.debug(`exec  multi: ${multi}`);
-    return new RedisHelperReplyParser(res);
+  async exec(multi: ChainableCommander) {
+    this.logger.debug(`exec multi: ${multi}`);
+    await multi.exec();
   }
 
   /**
@@ -200,84 +170,17 @@ export default class RedisHelper {
    *  ["incr", "multifoo"],
    *  ["incr", "multibar"]
    * ]
-   * @returns {Promise}
    */
-  async multiWithTransaction(exeArr: [][]): Promise<RedisHelperReplyParser> {
-    const replies = await this.redisClient.multi(exeArr).exec();
-    this.logger.debug(
-      `multiWithTransaction  exeArr: ${JSON.stringify(exeArr)}`
-    );
-    return new RedisHelperReplyParser(replies);
+  async multiWithTransaction(exeArr: [][]) {
+    this.logger.debug(`multiWithTransaction exeArr: ${JSON.stringify(exeArr)}`);
+    await this.redisClient.multi(exeArr).exec();
   }
 
   /**
    * 复制出一个新的客户端
    * @returns {Promise}
    */
-  async duplicate(): Promise<any> {
-    return await this.redisClient.duplicate();
-  }
-}
-
-/**
- * 返回结果包装类
- */
-export class RedisHelperReplyParser {
-  source: any;
-
-  constructor(source) {
-    this.source = source;
-  }
-
-  /**
-   * 不转换直接取出来
-   * @returns {*}
-   */
-  get(): any {
-    return this.source;
-  }
-
-  /**
-   * ['test', 7, 'test1', 8] => {test: 7, test1: 8}
-   * @returns {{}}
-   */
-  toObj(): object {
-    const result = {};
-    for (let i = 0; i < this.source.length; i = i + 2) {
-      result[this.source[i]] = this.source[i + 1];
-    }
-    return result;
-  }
-
-  /**
-   * 转为bool值
-   * @returns {boolean}
-   */
-  toBool(): boolean {
-    return this.source === 1;
-  }
-
-  /**
-   * 转换为带分数的数组
-   * @param withscores
-   * @returns {Array}
-   */
-  toScoreValue(withscores = true): any[] {
-    if (!this.source || !(this.source.length > 0)) {
-      return [];
-    }
-
-    const result = [];
-    for (let i = 0; i < this.source.length; i = i + 2) {
-      if (withscores) {
-        const temp = {};
-        temp["value"] = JSON.parse(this.source[i]);
-        temp["score"] = parseInt(this.source[i + 1]);
-        result.push(temp);
-      } else {
-        result.push(JSON.parse(this.source[i]));
-      }
-    }
-    return result;
+  duplicate(): Redis {
+    return this.redisClient.duplicate();
   }
 }

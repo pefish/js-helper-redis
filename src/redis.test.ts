@@ -1,9 +1,9 @@
 import { Logger } from "@pefish/js-logger";
 import assert from "assert";
-import { default as RedisClusterHelper, default as RedisHelper } from "./redis";
+import { RedisHelper } from "./redis";
 
 describe("RedisClusterHelper", () => {
-  let helper: RedisClusterHelper;
+  let helper: RedisHelper;
 
   before(async () => {
     helper = new RedisHelper(new Logger(), {
@@ -76,7 +76,7 @@ describe("RedisClusterHelper", () => {
     try {
       await helper.list.rpush("test_list", ["3", "4"]);
       const result = await helper.list.lrange("test_list", 0, -1);
-      console.error(result.get());
+      console.error(result);
     } catch (err) {
       console.error("haha", err);
       assert.throws(() => {}, err);

@@ -1,4 +1,4 @@
-import RedisHelper, { RedisHelperReplyParser } from "./redis";
+import { RedisHelper } from "./redis";
 
 /**
  * redis有序集合类
@@ -13,13 +13,11 @@ export class OrderSet {
   /**
    * 为指定有序集合添加多个成员
    * @param key
-   * @param arr,先分数后值
-   * @returns {Promise}
+   * @param arr 先分数后值
    */
-  async zadd(key: string, arr: string[]): Promise<RedisHelperReplyParser> {
-    const re = await this.helper.redisClient.zadd(key, ...arr);
-    this.helper.logger.debug(`set  key: ${key}, arr: ${JSON.stringify(arr)}`);
-    return new RedisHelperReplyParser(re);
+  async zadd(key: string, arr: string[]) {
+    this.helper.logger.debug(`set, key: ${key}, arr: ${JSON.stringify(arr)}`);
+    await this.helper.redisClient.zadd(key, ...arr);
   }
 
   /**
@@ -28,24 +26,24 @@ export class OrderSet {
    * @param start
    * @param end
    * @param withscores {boolean} 是否带分数
-   * @returns {Promise<any>}
+   * @returns {Promise<string[]>}
    */
   async zrevrange(
     key: string,
     start: string,
     end: string,
     withscores: boolean = true
-  ): Promise<RedisHelperReplyParser> {
+  ): Promise<string[]> {
+    this.helper.logger.debug(
+      `zrevrange, key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`
+    );
     let re;
     if (withscores) {
       re = await this.helper.redisClient.zrange(key, start, end, "WITHSCORES");
     } else {
       re = await this.helper.redisClient.zrange(key, start, end);
     }
-    this.helper.logger.debug(
-      `zrevrange  key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`
-    );
-    return new RedisHelperReplyParser(re);
+    return re;
   }
 
   /**
@@ -54,24 +52,25 @@ export class OrderSet {
    * @param start
    * @param end
    * @param withscores {boolean} 是否带分数
-   * @returns {Promise<any>}
+   * @returns {Promise<string[]>}
    */
   async zrange(
     key: string,
     start: string,
     end: string,
     withscores: boolean = true
-  ): Promise<RedisHelperReplyParser> {
+  ): Promise<string[]> {
+    this.helper.logger.debug(
+      `zrange, key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`
+    );
     let re;
     if (withscores) {
       re = await this.helper.redisClient.zrange(key, start, end, "WITHSCORES");
     } else {
       re = await this.helper.redisClient.zrange(key, start, end);
     }
-    this.helper.logger.debug(
-      `zrange  key: ${key}, start: ${start}, end: ${end}, withscores: ${withscores}`
-    );
-    return new RedisHelperReplyParser(re);
+
+    return re;
   }
 
   /**
@@ -80,14 +79,17 @@ export class OrderSet {
    * @param maxScore
    * @param minScore
    * @param withscores {boolean} 是否带分数
-   * @returns {Promise<any>}
+   * @returns {Promise<string[]>}
    */
   async zrevrangebyscore(
     key: string,
     maxScore: string,
     minScore: string,
     withscores: boolean = true
-  ): Promise<RedisHelperReplyParser> {
+  ): Promise<string[]> {
+    this.helper.logger.debug(
+      `zrevrangebyscore, key: ${key}, maxScore: ${maxScore}, minScore: ${minScore}, withscores: ${withscores}`
+    );
     let re;
     if (withscores) {
       re = await this.helper.redisClient.zrange(
@@ -99,20 +101,19 @@ export class OrderSet {
     } else {
       re = await this.helper.redisClient.zrange(key, maxScore, minScore);
     }
-    this.helper.logger.debug(
-      `zrevrangebyscore  key: ${key}, maxScore: ${maxScore}, minScore: ${minScore}, withscores: ${withscores}`
-    );
-    return new RedisHelperReplyParser(re);
+
+    return re;
   }
 
   /**
    * 获取有序集合中某个成员的分数
    * @param key
    * @param val
+   * * @returns {Promise<number>}
    */
-  async zscore(key: string, val: string): Promise<RedisHelperReplyParser> {
+  async zscore(key: string, val: string): Promise<number> {
+    this.helper.logger.debug(`zscore, key: ${key}, val: ${val}`);
     const re = await this.helper.redisClient.zscore(key, val);
-    this.helper.logger.debug(`zscore  key: ${key}, val: ${val}`);
-    return new RedisHelperReplyParser(re);
+    return parseInt(re);
   }
 }
