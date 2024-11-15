@@ -82,4 +82,15 @@ describe("RedisClusterHelper", () => {
       assert.throws(() => {}, err);
     }
   });
+
+  it("List get", async () => {
+    try {
+      await helper.list.rpush("test_list", ["3", "4"]);
+      const result = await helper.list.get("test_list", 100);
+      console.error(result);
+    } catch (err) {
+      console.error("haha", err);
+      assert.throws(() => {}, err);
+    }
+  });
 });

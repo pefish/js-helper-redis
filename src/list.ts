@@ -42,6 +42,27 @@ export class List {
   }
 
   /**
+   * 通过索引获取列表中的元素
+   * @param key
+   * @param index
+   * @returns {Promise<string>} 如果指定索引值不在列表的区间范围内，返回 null
+   */
+  async get(key: string, index: number): Promise<string> {
+    this.helper.logger.debug(`lindex, key: ${key}, index: ${index}`);
+    return await this.helper.redisClient.lindex(key, index);
+  }
+
+  /**
+   * 获取列表中的最后一个元素
+   * @param key
+   * @returns {Promise<string>} 如果一个元素都没有，返回 null
+   */
+  async last(key: string): Promise<string> {
+    this.helper.logger.debug(`lindex, key: ${key}, index: -1`);
+    return await this.helper.redisClient.lindex(key, -1);
+  }
+
+  /**
    * 为指定列表添加多个成员，是依次添加到尾部
    * @param key {string} key
    * @param arr {array} 要添加的所有成员
