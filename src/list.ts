@@ -32,6 +32,16 @@ export class List {
   }
 
   /**
+   * 返回列表的长度
+   * @param key
+   * @returns {Promise<number>} 如果列表 key 不存在，返回 0
+   */
+  async length(key: string): Promise<number> {
+    this.helper.logger.debug(`llen, key: ${key}`);
+    return await this.helper.redisClient.llen(key);
+  }
+
+  /**
    * 为指定列表添加多个成员，是依次添加到尾部
    * @param key {string} key
    * @param arr {array} 要添加的所有成员

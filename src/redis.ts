@@ -98,8 +98,19 @@ export class RedisHelper {
    * @param key {string} key
    */
   async del(key: string) {
-    this.logger.debug(`del  key: ${key}`);
+    this.logger.debug(`del, key: ${key}`);
     await this.redisClient.del(key);
+  }
+
+  /**
+   * 检查给定 key 是否存在。
+   * @param key {string} key
+   * @returns {Promise<boolean>}
+   */
+  async exists(key: string): Promise<boolean> {
+    this.logger.debug(`exists, key: ${key}`);
+    const re = await this.redisClient.exists(key);
+    return re === 1;
   }
 
   /**
