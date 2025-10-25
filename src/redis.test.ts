@@ -7,7 +7,7 @@ describe("RedisClusterHelper", () => {
 
   before(async () => {
     helper = new RedisHelper(new Logger(), {
-      host: "0.0.0.0",
+      url: "0.0.0.0",
       password: "password",
     });
   });

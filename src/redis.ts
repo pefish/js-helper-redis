@@ -7,8 +7,7 @@ import { Set } from "./set";
 import { String } from "./string";
 
 type RedisConfig = {
-  host: string;
-  port?: number;
+  url: string;
   db?: number;
   password?: string;
 };
@@ -27,9 +26,19 @@ export class RedisHelper {
     this.logger = logger;
     this.config = config;
 
+    const arr = config.url.split(":");
+    const host = arr[0];
+    let port = 6379;
+    if (arr.length >= 2) {
+      port = parseInt(arr[1]);
+    }
+
     this.redisClient = new Redis({
       lazyConnect: true,
-      ...config,
+      host: host,
+      port: port,
+      password: config.password,
+      db: config.db || 0,
     });
 
     this.redisClient.defineCommand("releaseLock", {
@@ -46,12 +55,12 @@ export class RedisHelper {
 
   async init(): Promise<void> {
     try {
-      this.logger.info(`connecting redis: ${this.config.host} ...`);
+      this.logger.info(`connecting redis: ${this.config.url} ...`);
       await this.redisClient.connect();
-      this.logger.info(`redis: ${this.config.host} connect succeed!`);
+      this.logger.info(`redis: ${this.config.url} connect succeed!`);
     } catch (err) {
       await this.close(); // 禁止重连
-      this.logger.error(`redis: ${this.config.host} connect failed! ${err}`);
+      this.logger.error(`redis: ${this.config.url} connect failed! ${err}`);
       throw err;
     }
   }

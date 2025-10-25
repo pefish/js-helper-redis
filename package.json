@@ -1,6 +1,6 @@
 {
   "name": "@pefish/js-helper-redis",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "main": "./lib/index.js",
   "types": "./types/index.d.ts",
   "scripts": {
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@pefish/js-logger": "^1.0.4",
+    "@pefish/js-starter": "^1.0.3",
     "ioredis": "^5.4.1"
   },
   "devDependencies": {
