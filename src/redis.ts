@@ -130,39 +130,26 @@ export class RedisHelper {
   }
 
   /**
-   * 将 client 转为 subscribe 模式(此时只有 subscribe 相关命令以及 quit 命令可以有效执行)
+   * subscribe 消息
    * @param channel
    */
-  async subscribe(channel: string) {
-    await this.redisClient.subscribe(channel);
-  }
-
-  /**
-   * subscribe 事件
-   * @param callback
-   */
-  onSubscribe(callback: (channel: string, count: number) => void) {
-    this.redisClient.on("subscribe", (channel, count) => {
-      callback(channel, count);
+  async subscribe(
+    channels: string[],
+    messageCallback: (channel: string, message: string) => void
+  ) {
+    this.redisClient.on("message", (channel, message) => {
+      this.logger.debug(
+        `received message from channel: ${channel}, message: ${message}`
+      );
+      messageCallback(channel, message);
     });
-  }
-
-  /**
-   * unsubscribe 事件
-   * @param callback
-   */
-  onUnsubscribe(callback: (channel: string, count: number) => void) {
-    this.redisClient.on("unsubscribe", (channel, count) => {
-      callback(channel, count);
+    await this.redisClient.subscribe(...channels, (err, count) => {
+      if (err) {
+        this.logger.error(`subscribe channel failed, ${err}`);
+        return;
+      }
+      this.logger.info(`subscribe succeed, subscribed ${count} channels`);
     });
-  }
-
-  /**
-   * message 事件
-   * @param callback
-   */
-  onMessage(callback: (channel: string, message: string) => void) {
-    this.redisClient.on("message", callback);
   }
 
   /**

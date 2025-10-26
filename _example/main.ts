@@ -22,8 +22,21 @@ async function main(args: StartArgs) {
     password: process.env["REDIS_PASSWORD"] as string,
   });
   console.log("redis connected");
-  const a = await redisInstance.string.get("test");
-  console.log(a);
+  await redisInstance.subscribe(
+    ["test_channel"],
+    (channel: string, message: string) => {
+      switch (channel) {
+        case "test_channel":
+          args.logger.info(`received message from test_channel: ${message}`);
+          break;
+        default:
+          args.logger.warn(
+            `received message from unknown channel: ${channel}, message: ${message}`
+          );
+      }
+    }
+  );
+  await new Promise((resolve) => {});
 }
 
 async function onExited(err: Error) {
