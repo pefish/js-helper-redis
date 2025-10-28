@@ -134,6 +134,7 @@ export class RedisHelper {
    * @param channel
    */
   async subscribe(
+    abortSignal: AbortSignal,
     channels: string[],
     messageCallback: (channel: string, message: string) => void
   ) {
@@ -143,13 +144,18 @@ export class RedisHelper {
       );
       messageCallback(channel, message);
     });
-    await this.redisClient.subscribe(...channels, (err, count) => {
+    this.redisClient.subscribe(...channels, (err, count) => {
       if (err) {
         this.logger.error(`subscribe channel failed, ${err}`);
         return;
       }
       this.logger.info(`subscribe succeed, subscribed ${count} channels`);
     });
+    while (!abortSignal.aborted) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    this.logger.info(`unsubscribe channels: ${channels.join(",")}`);
+    await this.redisClient.unsubscribe(...channels);
   }
 
   /**

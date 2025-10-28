@@ -23,6 +23,7 @@ async function main(args: StartArgs) {
   });
   console.log("redis connected");
   await redisInstance.subscribe(
+    args.abortSignal,
     ["test_channel"],
     (channel: string, message: string) => {
       switch (channel) {
@@ -36,7 +37,6 @@ async function main(args: StartArgs) {
       }
     }
   );
-  await new Promise((resolve) => {});
 }
 
 async function onExited(err: Error) {
